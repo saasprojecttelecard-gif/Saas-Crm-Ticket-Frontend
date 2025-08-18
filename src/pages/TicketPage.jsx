@@ -273,13 +273,13 @@ function TicketForm({ initialData, onSubmit, isLoading, isEdit }) {
             <div className="space-y-2">
                 <Label htmlFor="priority">Status</Label>
                 <select
-                    id="priority"
+                    id="status"
                     value={formData.status}
                     onChange={handleInputChange}
                     className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                    <option value="low">Open</option>
-                    <option value="medium">Close</option>
+                    <option value="open">Open</option>
+                    <option value="close">Close</option>
                 </select>
             </div>
             <DialogFooter className="pt-4">
