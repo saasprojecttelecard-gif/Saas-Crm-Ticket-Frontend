@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,108 +18,99 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogDescription,
     DialogFooter
 } from '@/components/ui/dialog';
-import { Send, PlusCircle, Trash2, Edit2 } from 'lucide-react';
+import { Send, PlusCircle, Pencil } from 'lucide-react';
 import apiClient from '@/lib/apiClient';
-
-function Toast({ message, type, onClose }) {
-    const baseClasses = "fixed bottom-4 right-4 p-4 rounded-md shadow-lg text-white transition-all duration-300 transform";
-    const typeClasses = type === 'success' ? "bg-green-500" : "bg-red-500";
-    const [isVisible, setIsVisible] = useState(true);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsVisible(false);
-            setTimeout(onClose, 300);
-        }, 3000);
-        return () => clearTimeout(timer);
-    }, [onClose]);
-
-    if (!isVisible) return null;
-
-    return (
-        <div className={`${baseClasses} ${typeClasses}`}>
-            {message}
-        </div>
-    );
-}
-
-
-
-const initialTickets = [
-    { id: '1', title: 'Login issue', description: 'Cannot log in with my credentials', priority: 'high', status: 'open', createdAt: '2023-10-26T10:00:00Z' },
-    { id: '2', title: 'Payment failed', description: 'Credit card transaction declined', priority: 'high', status: 'open', createdAt: '2023-10-25T14:30:00Z' },
-    { id: '3', title: 'Product question', description: 'Question about product features', priority: 'low', status: 'closed', createdAt: '2023-10-24T09:00:00Z' },
-];
+import toast from 'react-hot-toast';
 
 export default function TicketPage() {
     const [tickets, setTickets] = useState([]);
+    const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [toast, setToast] = useState({ message: '', type: '' });
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [currentTicket, setCurrentTicket] = useState(null);
+    const [formLoading, setFormLoading] = useState(false);
 
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [assignTicketModalOpen, setAssignTicketModalOpen] = useState(false);
+    const [currentTicket, setCurrentTicket] = useState(null);
+    const [assignUserId, setAssignUserId] = useState('');
+
+    // Fetch tickets + users
     useEffect(() => {
-        const fetchTickets = async () => {
-            apiClient.get('/tickets').then((res) => {
-                setTickets(res.data)
-            })
-        };
-        fetchTickets();
+        apiClient.get('/tickets')
+            .then(res => setTickets(res.data))
+            .catch(err => toast.error(err.message));
+
+        apiClient.get('/tickets/users/assignment')
+            .then(res => setUsers(res.data))
+            .catch(err => toast.error(err.message));
     }, []);
 
-    // --- inside TicketPage ---
+    // Add / Update Ticket
+    // Add / Update Ticket
     const handleFormSubmit = async (formData) => {
-        setIsLoading(true);
+        if (!formData.title || !formData.description) {
+            toast.error("Title and Description are required.");
+            return;
+        }
+
+        setFormLoading(true);
         const isUpdate = !!formData.id;
 
         try {
             if (isUpdate) {
                 const payload = {
+                    title: formData.title,
+                    description: formData.description,
                     priority: formData.priority,
                     status: formData.status,
-                }
-                const { data: updatedTicket } = await apiClient.patch(`/tickets/${formData.id}`, payload);
-                setTickets(prevTickets =>
-                    prevTickets.map(t =>
-                        t.id === formData.id ? { ...updatedTicket } : t
-                    )
+                };
+
+                const { data: updatedTicket } = await apiClient.patch(
+                    `/tickets/${formData.id}`,
+                    payload
                 );
-                setToast({ message: 'Ticket updated successfully!', type: 'success' });
+
+                setTickets((prev) =>
+                    prev.map((t) => (t.id === formData.id ? { ...updatedTicket } : t))
+                );
+                toast.success("Ticket updated successfully!");
             } else {
-                const { data: newTicket } = await apiClient.post('/tickets', formData);
-                setTickets(prevTickets => [newTicket, ...prevTickets]);
-                setToast({ message: 'Ticket created successfully!', type: 'success' });
+                const { data: newTicket } = await apiClient.post("/tickets", formData);
+                setTickets((prev) => [newTicket, ...prev]);
+                toast.success("Ticket created successfully!");
             }
             setIsModalOpen(false);
             setCurrentTicket(null);
-        } catch (apiError) {
-            console.error('API Error:', apiError);
-            setToast({ message: `Failed to ${isUpdate ? 'update' : 'create'} ticket.`, type: 'error' });
+        } catch (err) {
+            toast.error(`Failed to ${isUpdate ? "update" : "create"} ticket`);
         } finally {
-            setIsLoading(false);
+            setFormLoading(false);
         }
     };
 
-    const handleDelete = async (ticketId) => {
-        const confirmDelete = window.confirm("Are you sure you want to delete this ticket?");
-        if (!confirmDelete) return;
 
-        setIsLoading(true);
+    // Assign Ticket
+    const handleAssignTicketSubmit = async () => {
+        if (!assignUserId) {
+            toast.error("Please select a user to assign.");
+            return;
+        }
+        setFormLoading(true);
         try {
-            await apiClient.delete(`/tickets/${ticketId}`);
-            setTickets(prevTickets => prevTickets.filter(t => t.id !== ticketId));
-            setToast({ message: 'Ticket deleted successfully!', type: 'success' });
-        } catch (apiError) {
-            console.error('API Error:', apiError);
-            setToast({ message: 'Failed to delete ticket.', type: 'error' });
+            await apiClient.patch(`/tickets/${currentTicket.id}/assign`, {
+                assigned_to: assignUserId
+            });
+            toast.success("Ticket assigned successfully!");
+            setAssignTicketModalOpen(false);
+            setAssignUserId('');
+            setCurrentTicket(null);
+        } catch (err) {
+            toast.error("Failed to assign ticket.");
         } finally {
-            setIsLoading(false);
+            setFormLoading(false);
         }
     };
-
 
     const handleAddTicket = () => {
         setCurrentTicket(null);
@@ -131,89 +122,131 @@ export default function TicketPage() {
         setIsModalOpen(true);
     };
 
-    return (
-        <>
-            <Card className="p-4 rounded-none">
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Ticket Management</CardTitle>
-                    <Button onClick={handleAddTicket} >
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Title</TableHead>
-                                <TableHead>Priority</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Created At</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan="5" className="text-center">
-                                        Loading...
-                                    </TableCell>
-                                </TableRow>
-                            ) : tickets.length > 0 ? (
-                                tickets.map((ticket) => (
-                                    <TableRow key={ticket.id}>
-                                        <TableCell className="font-medium">{ticket.title}</TableCell>
-                                        <TableCell>{ticket.priority}</TableCell>
-                                        <TableCell>{ticket.status}</TableCell>
-                                        <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
-                                        <TableCell className="text-right space-x-2">
-                                            <Button variant="ghost" size="sm" onClick={() => handleEditTicket(ticket)}>
-                                                <Edit2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => handleDelete(ticket.id)}>
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan="5" className="text-center">
-                                        No tickets found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+    const handleAssignTicket = (ticket) => {
+        setCurrentTicket(ticket);
+        setAssignTicketModalOpen(true);
+    };
 
-            {/* Ticket Creation/Update Modal */}
+    return (
+        <Card className="p-4 rounded-none">
+            <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Ticket Management</CardTitle>
+                <Button onClick={handleAddTicket}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Priority</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Created At</TableHead>
+                            <TableHead>Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading ? (
+                            <TableRow>
+                                <TableCell colSpan="5" className="text-center">Loading...</TableCell>
+                            </TableRow>
+                        ) : tickets.length > 0 ? (
+                            tickets.map(ticket => (
+                                <TableRow key={ticket.id}>
+                                    <TableCell className="font-medium">{ticket.title}</TableCell>
+                                    <TableCell>{ticket.priority}</TableCell>
+                                    <TableCell>{ticket.status}</TableCell>
+                                    <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
+                                    <TableCell className="space-x-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleEditTicket(ticket)}
+                                        >
+                                            <Pencil className="h-4 w-4" /> Edit
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleAssignTicket(ticket)}
+                                        >
+                                            <Send className="h-4 w-4" /> Assign
+                                        </Button>
+                                        {/* <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(ticket.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button> */}
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan="5" className="text-center">No tickets found.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+
+            {/* Ticket Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle>{currentTicket ? 'Edit Ticket' : 'Create New Ticket'}</DialogTitle>
-                        {/* <DialogDescription>
-                            {currentTicket ? 'Update the details for this ticket.' : 'Fill in the details for the new ticket.'}
-                        </DialogDescription> */}
+                        <DialogTitle>{currentTicket ? "Edit Ticket" : "Create Ticket"}</DialogTitle>
                     </DialogHeader>
                     <TicketForm
                         initialData={currentTicket}
                         onSubmit={handleFormSubmit}
-                        isLoading={isLoading}
-                        isEdit={currentTicket ? true : false}
+                        isLoading={formLoading}
                     />
                 </DialogContent>
             </Dialog>
-            {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: '' })} />}
-        </>
+
+            {/* Assign Ticket Modal */}
+            <Dialog open={assignTicketModalOpen} onOpenChange={setAssignTicketModalOpen}>
+                <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Assign to User</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="assignUser">Select User</Label>
+                        <select
+                            id="assignUser"
+                            value={assignUserId}
+                            onChange={(e) => setAssignUserId(e.target.value)}
+                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                            <option value="">Select User</option>
+                            {users.map(user => (
+                                <option key={user.id} value={user.id}>{user.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <DialogFooter className="pt-4">
+                        <Button
+                            type="button"
+                            onClick={handleAssignTicketSubmit}
+                            disabled={formLoading}
+                        >
+                            {formLoading ? "Assigning..." : "Assign"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </Card>
     );
 }
 
-function TicketForm({ initialData, onSubmit, isLoading, isEdit }) {
+function TicketForm({ initialData, onSubmit, isLoading }) {
     const [formData, setFormData] = useState(initialData || {
         title: '',
         description: '',
         priority: 'low',
+        status: 'open',
     });
 
     useEffect(() => {
@@ -227,79 +260,63 @@ function TicketForm({ initialData, onSubmit, isLoading, isEdit }) {
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
-    const handleLocalSubmit = (event) => {
-        event.preventDefault();
+    const handleLocalSubmit = (e) => {
+        e.preventDefault();
         onSubmit(formData);
     };
 
     return (
         <form onSubmit={handleLocalSubmit} className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title" className="mb-4">Title</Label>
                 <Input
                     id="title"
                     type="text"
-                    placeholder="e.g., Issue with a recent order"
                     value={formData.title}
                     onChange={handleInputChange}
-                    className="w-full"
+                    placeholder="e.g. Issue with login"
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className="mb-4">Description</Label>
                 <Textarea
                     id="description"
-                    placeholder="Provide a detailed description of the issue."
+                    rows={4}
                     value={formData.description}
                     onChange={handleInputChange}
-                    rows={4}
-                    className="w-full"
+                    placeholder="Describe the issue..."
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
+                <Label htmlFor="priority" className="mb-4">Priority</Label>
                 <select
                     id="priority"
                     value={formData.priority}
                     onChange={handleInputChange}
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="w-full border rounded p-2"
                 >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                 </select>
             </div>
-
             <div className="space-y-2">
-                <Label htmlFor="priority">Status</Label>
+                <Label htmlFor="status" className="mb-4">Status</Label>
                 <select
                     id="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="w-full border rounded p-2"
                 >
                     <option value="open">Open</option>
-                    <option value="close">Close</option>
+                    <option value="closed">Closed</option>
                 </select>
             </div>
-            <DialogFooter className="pt-4">
-                <Button
-                    type="submit"
-                    // className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition-all duration-300"
-                    disabled={isLoading}
-                >
-                    {isLoading ? (
-                        <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Submitting...
-                        </span>
-                    ) : (
+            <DialogFooter>
+                <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Submitting..." : (
                         <>
-                            <Send className="mr-2 h-4 w-4" />
-                            {initialData ? 'Update Ticket' : 'Create Ticket'}
+                            <Send className="mr-2 h-4 w-4" /> {initialData ? "Update Ticket" : "Create Ticket"}
                         </>
                     )}
                 </Button>

@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import AdminLayout from '@saas-crm/shared/AdminLayout';
+import { checkAuthAndRedirect } from '@saas-crm/shared/tokenHandler';
 import TicketPage from './pages/TicketPage';
 
 
 function App() {
-    localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI…U0OH0.Z4Vc2VAXDHH1xEDRb3EFTwVi7zxe3F-oGTDSuEMS8hk')
+    useEffect(() => {
+        checkAuthAndRedirect();
+    }, []);
     return (
         <div className="App">
             <BrowserRouter basename='tickets'>

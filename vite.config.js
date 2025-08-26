@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
             },
         },
         server: {
-            port: 3003,
+            port: 3006,
             proxy: {
                 '/api': env.VITE_API_BASE_URL,
             },
