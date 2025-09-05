@@ -169,6 +169,7 @@ export default function TicketPage() {
                                         <Button
                                             size="sm"
                                             variant="secondary"
+                                            className="bg-primary"
                                             onClick={() => handleAssignTicket(ticket)}
                                         >
                                             <Send className="h-4 w-4" /> Assign
