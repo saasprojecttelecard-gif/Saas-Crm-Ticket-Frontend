@@ -161,18 +161,19 @@ export default function TicketPage() {
                                     <TableCell className="space-x-2">
                                         <Button
                                             size="sm"
-                                            variant="outline"
+                                            variant="ghost"
                                             onClick={() => handleEditTicket(ticket)}
+                                            title="Edit Ticket"
                                         >
-                                            <Pencil className="h-4 w-4" /> Edit
+                                            <Pencil className="h-4 w-4" />
                                         </Button>
                                         <Button
+                                            variant="outline"
                                             size="sm"
-                                            variant="secondary"
-                                            className="bg-primary"
                                             onClick={() => handleAssignTicket(ticket)}
+                                            title="Assign Ticket"
                                         >
-                                            <Send className="h-4 w-4" /> Assign
+                                            <Send className="h-4 w-4" />
                                         </Button>
                                         {/* <Button
                       variant="destructive"
