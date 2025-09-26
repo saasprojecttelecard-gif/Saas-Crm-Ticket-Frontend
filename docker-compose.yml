@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  ticket-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+        - VITE_LOGIN_URL=${VITE_LOGIN_URL}
+        - VITE_API_BASE_URL_AUTH=${VITE_API_BASE_URL_AUTH}
+    container_name: saas-crm-ticket-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      # Example of passing Vite envs (prefix with VITE_ to be embedded at build time)
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_LOGIN_URL=${VITE_LOGIN_URL}
+      - VITE_API_BASE_URL_AUTH=${VITE_API_BASE_URL_AUTH}
+    ports:
+      - "4007:4007"
+    networks:
+      - ticket-frontend-net
+
+networks:
+  ticket-frontend-net:
+    driver: bridge
