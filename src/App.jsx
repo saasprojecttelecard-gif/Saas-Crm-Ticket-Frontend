@@ -9,6 +9,7 @@ import TicketPage from './pages/TicketPage';
 function App() {
     useEffect(() => {
         checkAuthAndRedirect();
+        // 
     }, []);
     return (
         <div className="App">
