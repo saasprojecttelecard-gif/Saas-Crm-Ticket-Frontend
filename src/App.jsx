@@ -9,7 +9,7 @@ import TicketPage from './pages/TicketPage';
 function App() {
     useEffect(() => {
         checkAuthAndRedirect();
-        // 
+        // console.log('ticket')
     }, []);
     return (
         <div className="App">
