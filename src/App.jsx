@@ -7,6 +7,7 @@ import TicketPage from './pages/TicketPage';
 
 
 function App() {
+    console.log('Saas-Crm-Ticket-Frontend App loaded');
     useEffect(() => {
         checkAuthAndRedirect();
         // console.log('ticket')
