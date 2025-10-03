@@ -10,7 +10,7 @@ function App() {
     console.log('Saas-Crm-Ticket-Frontend App loaded');
     useEffect(() => {
         checkAuthAndRedirect();
-        // console.log('ticket')
+        console.log('ticket')
     }, []);
     return (
         <div className="App">
