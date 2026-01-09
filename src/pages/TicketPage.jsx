@@ -21,12 +21,13 @@ import {
     DialogFooter
 } from '@/components/ui/dialog';
 import { Send, PlusCircle, Pencil } from 'lucide-react';
-import apiClient from '@/lib/apiClient';
+import apiClient, { apiClientContact } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 
 export default function TicketPage() {
     const [tickets, setTickets] = useState([]);
     const [users, setUsers] = useState([]);
+    const [contacts, setContacts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [formLoading, setFormLoading] = useState(false);
 
@@ -34,15 +35,29 @@ export default function TicketPage() {
     const [assignTicketModalOpen, setAssignTicketModalOpen] = useState(false);
     const [currentTicket, setCurrentTicket] = useState(null);
     const [assignUserId, setAssignUserId] = useState('');
+    const [fieldErrors, setFieldErrors] = useState({});
 
-    // Fetch tickets + users
+    const fetchTickets = async () => {
+        setIsLoading(true);
+        try {
+            const res = await apiClient.get('/tickets');
+            setTickets(res.data);
+        } catch (err) {
+            toast.error("Failed to fetch tickets.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    // Fetch tickets + users + contacts
     useEffect(() => {
-        apiClient.get('/tickets')
-            .then(res => setTickets(res.data))
-            .catch(err => toast.error(err.message));
 
+        fetchTickets();
         apiClient.get('/tickets/users/assignment')
             .then(res => setUsers(res.data))
+            .catch(err => toast.error(err.message));
+
+        apiClientContact.get('/contacts')
+            .then(res => setContacts(res.data))
             .catch(err => toast.error(err.message));
     }, []);
 
@@ -64,6 +79,7 @@ export default function TicketPage() {
                     description: formData.description,
                     priority: formData.priority,
                     status: formData.status,
+                    // contact_id: formData.contact_id,
                 };
 
                 const { data: updatedTicket } = await apiClient.patch(
@@ -93,7 +109,7 @@ export default function TicketPage() {
     // Assign Ticket
     const handleAssignTicketSubmit = async () => {
         if (!assignUserId) {
-            toast.error("Please select a user to assign.");
+            setFieldErrors({ assignUser: "Please select a user to assign." });
             return;
         }
         setFormLoading(true);
@@ -105,8 +121,10 @@ export default function TicketPage() {
             setAssignTicketModalOpen(false);
             setAssignUserId('');
             setCurrentTicket(null);
+            fetchTickets();
         } catch (err) {
-            toast.error("Failed to assign ticket.");
+            toast.error(err.response?.data?.message || "Failed to assign ticket");
+            // toast.error("Failed to assign ticket.");
         } finally {
             setFormLoading(false);
         }
@@ -125,6 +143,7 @@ export default function TicketPage() {
     const handleAssignTicket = (ticket) => {
         setCurrentTicket(ticket);
         setAssignTicketModalOpen(true);
+        setAssignUserId(ticket.assigned_to || '');
     };
 
     return (
@@ -140,8 +159,11 @@ export default function TicketPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Title</TableHead>
+                            <TableHead>Description</TableHead>
                             <TableHead>Priority</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Assigned To</TableHead>
+                            <TableHead>Contact</TableHead>
                             <TableHead>Created At</TableHead>
                             <TableHead>Actions</TableHead>
                         </TableRow>
@@ -149,27 +171,31 @@ export default function TicketPage() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan="5" className="text-center">Loading...</TableCell>
+                                <TableCell colSpan="6" className="text-center">Loading...</TableCell>
                             </TableRow>
                         ) : tickets.length > 0 ? (
                             tickets.map(ticket => (
                                 <TableRow key={ticket.id}>
                                     <TableCell className="font-medium">{ticket.title}</TableCell>
+                                    <TableCell className="max-w-xs truncate">{ticket.description}</TableCell>
                                     <TableCell>{ticket.priority}</TableCell>
                                     <TableCell>{ticket.status}</TableCell>
+                                    <TableCell>{users.find(u => u.id === ticket.assigned_to)?.name || 'N/A'}</TableCell>
+                                    <TableCell>{contacts.find(c => c.id === ticket.contact_id)?.first_name || 'N/A'}</TableCell>
                                     <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
                                     <TableCell className="space-x-2">
                                         <Button
                                             size="sm"
-                                            variant="ghost"
+                                            variant="outline"
                                             onClick={() => handleEditTicket(ticket)}
                                             title="Edit Ticket"
                                         >
                                             <Pencil className="h-4 w-4" />
                                         </Button>
                                         <Button
-                                            variant="outline"
+                                            variant={ticket.status === 'closed' ? "disabled" : ""}
                                             size="sm"
+                                            disabled={ticket.status === 'closed'}
                                             onClick={() => handleAssignTicket(ticket)}
                                             title="Assign Ticket"
                                         >
@@ -187,7 +213,7 @@ export default function TicketPage() {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan="5" className="text-center">No tickets found.</TableCell>
+                                <TableCell colSpan="6" className="text-center">No tickets found.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
@@ -204,52 +230,180 @@ export default function TicketPage() {
                         initialData={currentTicket}
                         onSubmit={handleFormSubmit}
                         isLoading={formLoading}
+                        contacts={contacts}
                     />
                 </DialogContent>
             </Dialog>
 
             {/* Assign Ticket Modal */}
-            <Dialog open={assignTicketModalOpen} onOpenChange={setAssignTicketModalOpen}>
+            {/* Assign Ticket Modal */}
+            <Dialog open={assignTicketModalOpen} onOpenChange={(open) => {
+                setAssignTicketModalOpen(open);
+                if (!open) setFieldErrors({}); // Clear errors when closing
+            }}>
                 <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>Assign to User</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-2">
-                        <Label htmlFor="assignUser">Select User</Label>
+
+                    <div className="space-y-1">
+                        <Label htmlFor="assignUser" className="font-semibold text-gray-700 mb-3">
+                            Select User <span className="text-red-500">*</span>
+                        </Label>
                         <select
                             id="assignUser"
                             value={assignUserId}
-                            onChange={(e) => setAssignUserId(e.target.value)}
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            onChange={(e) => {
+                                setAssignUserId(e.target.value);
+                                if (fieldErrors.assignUser) {
+                                    setFieldErrors(prev => ({ ...prev, assignUser: null }));
+                                }
+                            }}
+                            className={`w-full h-10 rounded-md border bg-background px-3 py-2 text-sm transition-colors ${fieldErrors.assignUser
+                                ? "border-red-500 focus:ring-red-500"
+                                : "border-input focus:ring-ring"
+                                }`}
                         >
                             <option value="">Select User</option>
                             {users.map(user => (
                                 <option key={user.id} value={user.id}>{user.name}</option>
                             ))}
                         </select>
+
+                        {/* Red Error Message */}
+                        {fieldErrors.assignUser && (
+                            <p className="text-red-500 text-xs font-medium">{fieldErrors.assignUser}</p>
+                        )}
                     </div>
+
                     <DialogFooter className="pt-4">
                         <Button
                             type="button"
                             onClick={handleAssignTicketSubmit}
                             disabled={formLoading}
+                            className="w-full"
                         >
                             {formLoading ? "Assigning..." : "Assign"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </Card>
+        </Card >
     );
 }
 
-function TicketForm({ initialData, onSubmit, isLoading }) {
+// function TicketForm({ initialData, onSubmit, isLoading, contacts }) {
+//     const [formData, setFormData] = useState(initialData || {
+//         title: '',
+//         description: '',
+//         priority: 'low',
+//         status: 'open',
+//         contact_id: '',
+//     });
+
+//     useEffect(() => {
+//         if (initialData) {
+//             setFormData(initialData);
+//         }
+//     }, [initialData]);
+
+//     const handleInputChange = (e) => {
+//         const { id, value } = e.target;
+//         setFormData(prev => ({ ...prev, [id]: value }));
+//     };
+
+//     const handleLocalSubmit = (e) => {
+//         e.preventDefault();
+//         onSubmit(formData);
+//     };
+
+//     return (
+//         <form onSubmit={handleLocalSubmit} className="space-y-4">
+//             <div className="space-y-2">
+//                 <Label htmlFor="title" className="mb-4">Title <span className="text-red-500">*</span></Label>
+//                 <Input
+//                     id="title"
+//                     type="text"
+//                     value={formData.title}
+//                     onChange={handleInputChange}
+//                     placeholder="e.g. Issue with login"
+//                 />
+//             </div>
+//             <div className="space-y-2">
+//                 <Label htmlFor="description" className="mb-4">Description <span className="text-red-500">*</span></Label>
+//                 <Textarea
+//                     id="description"
+//                     rows={4}
+//                     value={formData.description}
+//                     onChange={handleInputChange}
+//                     placeholder="Describe the issue..."
+//                 />
+//             </div>
+//             <div className="space-y-2">
+//                 <Label htmlFor="contact_id" className="mb-4">Contact</Label>
+//                 <select
+//                     id="contact_id"
+//                     value={formData.contact_id}
+//                     onChange={handleInputChange}
+//                     className="w-full border rounded p-2"
+//                 >
+//                     <option value="">Select a contact</option>
+//                     {contacts && contacts.map(contact => (
+//                         <option key={contact.id} value={contact.id}>
+//                             {contact.first_name} {contact.last_name}
+//                         </option>
+//                     ))}
+//                 </select>
+//             </div>
+//             <div className="space-y-2">
+//                 <Label htmlFor="priority" className="mb-4">Priority</Label>
+//                 <select
+//                     id="priority"
+//                     value={formData.priority}
+//                     onChange={handleInputChange}
+//                     className="w-full border rounded p-2"
+//                 >
+//                     <option value="low">Low</option>
+//                     <option value="medium">Medium</option>
+//                     <option value="high">High</option>
+//                 </select>
+//             </div>
+//             <div className="space-y-2">
+//                 <Label htmlFor="status" className="mb-4">Status</Label>
+//                 <select
+//                     id="status"
+//                     value={formData.status}
+//                     onChange={handleInputChange}
+//                     className="w-full border rounded p-2"
+//                 >
+//                     <option value="open">Open</option>
+//                     <option value="closed">Closed</option>
+//                 </select>
+//             </div>
+//             <DialogFooter>
+//                 <Button type="submit" disabled={isLoading}>
+//                     {isLoading ? "Submitting..." : (
+//                         <>
+//                             <Send className="mr-2 h-4 w-4" /> {initialData ? "Update Ticket" : "Create Ticket"}
+//                         </>
+//                     )}
+//                 </Button>
+//             </DialogFooter>
+//         </form>
+//     );
+// }
+
+function TicketForm({ initialData, onSubmit, isLoading, contacts }) {
     const [formData, setFormData] = useState(initialData || {
         title: '',
         description: '',
         priority: 'low',
         status: 'open',
+        contact_id: '',
     });
+
+    // New state for field-specific errors
+    const [fieldErrors, setFieldErrors] = useState({});
 
     useEffect(() => {
         if (initialData) {
@@ -257,68 +411,136 @@ function TicketForm({ initialData, onSubmit, isLoading }) {
         }
     }, [initialData]);
 
+    const validate = () => {
+        const errors = {};
+        if (!formData.title.trim()) {
+            errors.title = "Title is required.";
+        }
+        if (!formData.description.trim()) {
+            errors.description = "Description is required.";
+        }
+        if (!formData.contact_id) {
+            errors.contact_id = "Contact is required.";
+        }
+        return errors;
+    };
+
     const handleInputChange = (e) => {
         const { id, value } = e.target;
         setFormData(prev => ({ ...prev, [id]: value }));
+
+        // Clear error when user starts typing
+        if (fieldErrors[id]) {
+            setFieldErrors(prev => ({ ...prev, [id]: null }));
+        }
     };
 
     const handleLocalSubmit = (e) => {
         e.preventDefault();
+
+        const errors = validate();
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
+            // toast.error("Please fix the highlighted errors.");
+            return;
+        }
+
         onSubmit(formData);
     };
 
     return (
         <form onSubmit={handleLocalSubmit} className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="title" className="mb-4">Title</Label>
+            {/* Title Field */}
+            <div className="space-y-1">
+                <Label htmlFor="title" className="mb-3">
+                    Title <span className="text-red-500">*</span>
+                </Label>
                 <Input
                     id="title"
                     type="text"
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="e.g. Issue with login"
+                    // Conditional red border class
+                    className={fieldErrors.title ? "border-red-500 focus-visible:ring-red-500" : ""}
                 />
+                {fieldErrors.title && (
+                    <p className="text-red-500 text-xs font-medium">{fieldErrors.title}</p>
+                )}
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="description" className="mb-4">Description</Label>
+
+            {/* Description Field */}
+            <div className="space-y-1">
+                <Label htmlFor="description" className="mb-3">
+                    Description <span className="text-red-500">*</span>
+                </Label>
                 <Textarea
                     id="description"
                     rows={4}
                     value={formData.description}
                     onChange={handleInputChange}
                     placeholder="Describe the issue..."
+                    // Conditional red border class
+                    className={fieldErrors.description ? "border-red-500 focus-visible:ring-red-500" : ""}
                 />
+                {fieldErrors.description && (
+                    <p className="text-red-500 text-xs font-medium">{fieldErrors.description}</p>
+                )}
             </div>
+
+            {!initialData && <div className="space-y-2">
+                <Label htmlFor="contact_id" className="mb-3">Contact  <span className="text-red-500">*</span></Label>
+                <select
+                    id="contact_id"
+                    value={formData.contact_id}
+                    onChange={handleInputChange}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                    <option value="">Select a contact</option>
+                    {contacts && contacts.map(contact => (
+                        <option key={contact.id} value={contact.id}>
+                            {contact.first_name} {contact.last_name}
+                        </option>
+                    ))}
+                </select>
+                {fieldErrors.contact_id && (
+                    <p className="text-red-500 text-xs font-medium">{fieldErrors.contact_id}</p>
+                )}
+            </div>}
+
             <div className="space-y-2">
-                <Label htmlFor="priority" className="mb-4">Priority</Label>
+                <Label htmlFor="priority" className="mb-3">Priority</Label>
                 <select
                     id="priority"
                     value={formData.priority}
                     onChange={handleInputChange}
-                    className="w-full border rounded p-2"
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                 </select>
             </div>
+
             <div className="space-y-2">
-                <Label htmlFor="status" className="mb-4">Status</Label>
+                <Label htmlFor="status" className="mb-3">Status</Label>
                 <select
                     id="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full border rounded p-2"
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                     <option value="open">Open</option>
                     <option value="closed">Closed</option>
                 </select>
             </div>
+
             <DialogFooter>
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                     {isLoading ? "Submitting..." : (
                         <>
-                            <Send className="mr-2 h-4 w-4" /> {initialData ? "Update Ticket" : "Create Ticket"}
+                            <Send className="mr-2 h-4 w-4" />
+                            {initialData ? "Update Ticket" : "Create Ticket"}
                         </>
                     )}
                 </Button>

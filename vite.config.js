@@ -15,11 +15,28 @@ export default defineConfig(({ mode }) => {
         resolve: {
             alias: {
                 "@": path.resolve(__dirname, "./src"),
-                // "@saas-crm/shared": path.resolve(__dirname, "../shared"),
+                "@saas-crm/shared": path.resolve(__dirname, "../shared"),
+                "react-is": path.resolve(__dirname, "../shared/react-is-polyfill.js"),
             },
         },
+        optimizeDeps: {
+            include: [
+                'react',
+                'react-dom',
+                'antd',
+                '@saas-crm/shared'
+            ],
+            force: true,
+            esbuildOptions: {
+                // Ignore source map errors
+                ignoreAnnotations: true,
+            }
+        },
+        define: {
+            global: 'globalThis',
+        },
         server: {
-            port: 3006,
+            port: process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 3006,
             proxy: {
                 '/api': env.VITE_API_BASE_URL,
             },
