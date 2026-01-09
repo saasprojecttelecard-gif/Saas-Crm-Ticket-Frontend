@@ -99,7 +99,8 @@ export default function TicketPage() {
             setIsModalOpen(false);
             setCurrentTicket(null);
         } catch (err) {
-            toast.error(`Failed to ${isUpdate ? "update" : "create"} ticket`);
+            // toast.error(`Failed to ${isUpdate ? "update" : "create"} ticket`);
+            toast.error(err.response?.data?.message || `Failed to ${isUpdate ? "update" : "create"} ticket`);
         } finally {
             setFormLoading(false);
         }
