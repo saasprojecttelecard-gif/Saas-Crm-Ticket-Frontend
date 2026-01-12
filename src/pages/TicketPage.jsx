@@ -223,16 +223,19 @@ export default function TicketPage() {
 
             {/* Ticket Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-[425px]">
-                    <DialogHeader>
+                <DialogContent className="p-0">
+                    <DialogHeader className="p-6 pb-2">
                         <DialogTitle>{currentTicket ? "Edit Ticket" : "Create Ticket"}</DialogTitle>
                     </DialogHeader>
-                    <TicketForm
-                        initialData={currentTicket}
-                        onSubmit={handleFormSubmit}
-                        isLoading={formLoading}
-                        contacts={contacts}
-                    />
+
+                    <div className="max-h-[80vh] overflow-y-auto px-6 pb-6">
+                        <TicketForm
+                            initialData={currentTicket}
+                            onSubmit={handleFormSubmit}
+                            isLoading={formLoading}
+                            contacts={contacts}
+                        />
+                    </div>
                 </DialogContent>
             </Dialog>
 
