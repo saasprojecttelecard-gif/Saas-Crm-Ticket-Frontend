@@ -223,12 +223,13 @@ export default function TicketPage() {
 
             {/* Ticket Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="p-0">
+                <DialogContent className="p-0"> {/* p-0 removes default padding to prevent scroll clashes */}
                     <DialogHeader className="p-6 pb-2">
                         <DialogTitle>{currentTicket ? "Edit Ticket" : "Create Ticket"}</DialogTitle>
                     </DialogHeader>
 
-                    <div className="max-h-[80vh] overflow-y-auto px-6 pb-6">
+                    {/* This wrapper handles the auto-scrollbar logic */}
+                    <div className="max-h-[70vh] overflow-y-auto px-6 pb-6">
                         <TicketForm
                             initialData={currentTicket}
                             onSubmit={handleFormSubmit}
